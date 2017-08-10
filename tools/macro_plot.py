@@ -64,9 +64,25 @@ def plot_mothly_ret(s: pd.Series, annot=False):
 
 
 def plot_corr_hearmap(df: pd.DataFrame, annot=True):
+    """相关系数热图"""
     corr_matrix = df.corr()
     sns.heatmap(corr_matrix, cmap=Mycmap, annot=annot, vmin=-1, vmax=1)
     plt.show()
+
+
+def plot_rolling_sharpe(ret: pd.Series, window: int, min_periods: int):
+    rolling_sharpe = ret.rolling(window=window, min_periods=min_periods).mean() / \
+                     ret.rolling(window=window, min_periods=min_periods).std()
+    rolling_sharpe = rolling_sharpe.dropna()
+
+    rolling_sharpe.plot()
+
+    plt.axhline(rolling_sharpe.iloc[-1], linestyle='--', label='now')
+    plt.axhline(rolling_sharpe.median(), c='r', label='Median')
+    plt.axhline(rolling_sharpe.mean(), c='y', label='Average')
+    plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0.)
+    plt.show()
+
 
 if __name__ == '__main__':
     print('Hello World')
