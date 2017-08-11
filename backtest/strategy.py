@@ -150,23 +150,23 @@ class Strategy(metaclass=abc.ABCMeta):
         # 重新组合每日收益
         self._s_ret = pd.Series(
             [record.pct_change for record in self._records],
-            index=[record.time for record in self._records])
+            index=[record.time for record in self._records]).dropna()
 
         # 从每日收益计算策略净值曲线
         self._nv = (self._s_ret + 1).cumprod()
-        self._nv = add_value_on_first(self._nv, 1, '1D')
+        self._nv = add_value_on_first(self._nv, 1, '1D').dropna()
 
         # 重新组合每次换手
         self._turnover = pd.Series(
             [record.turnover for record in self._records],
             index=[record.time for record in self._records]
-        )
+        ).dropna()
 
         # 重新组合每次交易成本
         self._cost = pd.Series(
             [record.cost for record in self._records],
             index=[record.time for record in self._records]
-        )
+        ).dropna()
 
         if report:
             self.report()

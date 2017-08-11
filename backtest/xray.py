@@ -143,13 +143,13 @@ class Xray:
         plt.legend(loc=3)
         plt.show()
 
-    def plot_daily_weight(self, figure_size=(12, 6), code_dict=code_map):
+    def plot_daily_weight(self, figure_size=(12, 6)):
         """绘制调仓的权重图"""
 
         weight = self._daily_weight.copy().rename(columns=code_map)
         weight.index = [pd.datetime.strftime(a, '%Y-%m') for a in weight.index]
 
-        weight.plot(title=self._s_name + ' Daily Weight', kind='bar', stacked=True, figsize=figure_size, alpha=0.9,
+        weight.plot(title=self._s_name + ' Daily Weight', kind='area', stacked=True, figsize=figure_size, alpha=0.9,
                     color=sns.color_palette("Paired"))
 
         step = len(weight.index) // 8
@@ -167,7 +167,7 @@ class Xray:
 
         w = weight.copy()
         w.index = [pd.datetime.strftime(a, '%Y-%m') for a in w.index]
-        w.plot(title=title, kind='area', stacked=True, figsize=figure_size, alpha=0.9,
+        w.plot(title=title, kind='bar', stacked=True, figsize=figure_size, alpha=0.9,
                     color=sns.color_palette("Paired"))
 
         step = len(w.index) // 8

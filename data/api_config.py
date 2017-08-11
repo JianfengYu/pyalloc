@@ -50,7 +50,10 @@ wind_edb_dict = {
 
     '上海金交所黄金现货Au9999':              'S0035819',
 
+    # 美国股市
     'S&P500':                             'G0001672',
+
+    # 香港股市
     '恒生指数':                            'G0001693',
 
     # 常用利率
@@ -76,9 +79,11 @@ if __name__ == '__main__':
     # show table status where comment='view'
     # """
 
-    sql = """
-    SELECT DISTINCT index_name FROM t_fund_index
-    """
-
-    df = pd.read_sql(sql, zyyx_conn)
-    print(df)
+    # sql = """
+    # SELECT DISTINCT index_name FROM t_fund_index
+    # """
+    #
+    # df = pd.read_sql(sql, zyyx_conn)
+    # print(df)
+    df = pd.DataFrame(wind_edb_dict, index=['code']).T
+    df.to_csv('EDB_config.csv')

@@ -25,6 +25,8 @@ class DataSource(metaclass=abc.ABCMeta):
 
         self._nrow = 0                      # 迭代器位置标记
 
+        self._external_data = None          # 外部数据,如因子数据和宏观数据
+
     def _check_valid(self):
         """
         检查数据是否符合规范，尤其是是否 DataFrame 是否具有必要的字段
@@ -53,6 +55,10 @@ class DataSource(metaclass=abc.ABCMeta):
     @property
     def data(self):
         return self._data
+
+    @property
+    def external_data(self):
+        return self._external_data
 
     def __getitem__(self, sid) -> pd.DataFrame:
         """
@@ -138,47 +144,42 @@ class DataSource(metaclass=abc.ABCMeta):
 
         return hists
 
-class WindDataReader(DataSource):
-    """主要用于从Wind读取和存储，不用于回测"""
+class WindDataSource(DataSource):
+    """主要用于从Wind读取和存储"""
 
     def __init__(self, sids: list, start: Union[pd.Timestamp, str], end: Union[pd.Timestamp, str],
-                 benchmark: str, riskfree: str, frequency=None):
+                 benchmark: Union[str, None], riskfree: Union[str, None], frequency=None):
         super().__init__(sids, frequency)
         self._benchmark = benchmark
 
+        print('loading data from wind edb')
+
         loader = WindEDBReader()
-
-        df = loader.read(self._sids, start, end)
-
-        if not isinstance(df.index, pd.DatetimeIndex):
-            raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
+        self._data = loader.read(self._sids, start, end)
 
         for sid in self._sids:
-            tmp_df = pd.DataFrame({'pct_change': df[sid].pct_change().dropna()})
-            self._data[sid] = tmp_df
-
             if self._columns is None:
-                self._columns = tmp_df.columns
-
-            # 对齐时间索引
+                self._columns = self._data[sid].columns
             if len(self._index) == 0:
-                self._index = tmp_df.index
+                self._index = self._data[sid].index
+            else:
+                # 获得所有index的交集
+                self._index = self._index.intersection(self._data[sid].index)
 
         if benchmark is not None and benchmark not in self.sids:
             if isinstance(benchmark, str):
-                df_bench = loader.read(benchmark, start, end)
+                df_bench = loader.read(benchmark, start, end)[benchmark]
 
                 if not isinstance(df_bench.index, pd.DatetimeIndex):
                     raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
 
-                self._data[benchmark] = pd.DataFrame({'pct_change': df_bench[benchmark].pct_change().dropna()})
+                self._data[benchmark] = pd.DataFrame({'pct_change': df_bench[benchmark]})
             else:
                 raise Exception("benchmark must be a sid")
 
         if riskfree is not None and riskfree not in self.sids:
             if isinstance(riskfree, str):
                 df_riskfree = loader.read(riskfree, start, end)[riskfree]
-                df_riskfree[riskfree] = anz.de_annualize(df_riskfree[riskfree], freq='D')
 
                 if not isinstance(df_riskfree.index, pd.DatetimeIndex):
                     raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
@@ -215,6 +216,8 @@ class HDFDataSource(DataSource):
                 self._columns = self._data[sid].columns
             if len(self._index) == 0:
                 self._index = self._data[sid].index
+            else:
+                self._index = self._index.intersection(self._data[sid].index)
 
         if benchmark is not None and benchmark not in self.sids:
             if isinstance(benchmark, str):
@@ -251,32 +254,31 @@ class HDFDataSource(DataSource):
         db.close()
 
 
-
-
-
 if __name__ == "__main__":
+    # 更新所有行情数据
+
     from pyalloc.data.api_config import wind_edb_dict
+    edb_config = pd.read_excel('D:\PersonalProjects\pyalloc\pyalloc\EDB_config.xlsx')
 
-    sid_names = [
-        '上证综合指数',
-        '中债综合指数',
-        '南华综合指数',
-        'SHIBOR_3m'
-    ]
+    sids = []
+    for iter in edb_config.itertuples():
+        if iter.type == 0 or iter.type ==2:
+            sids.append(iter.code)
 
-    benchmark_names = '上证综合指数'
+    benchmark_name = '上证综合指数'
+    riskfree_name = 'SHIBOR_3m'
 
-    benchmark = wind_edb_dict[benchmark_names]
-    sids = [wind_edb_dict[a] for a in sid_names]
+    benchmark = wind_edb_dict[benchmark_name]
+    riskfree = wind_edb_dict[riskfree_name]
 
-    start = '2010-06-01'
-    end = '2011-08-01'
+    start = '1990-01-01'
+    end = pd.datetime.now().strftime('%Y-%m-%d')
 
-    data_source = WindDataReader(sids, start, end, benchmark)
+    data_source = WindDataSource(sids, start, end, benchmark, riskfree)
     data_source.to_hdf('test_db.h5')
     print(data_source.data)
 
-    data_source2 = HDFDataSource('test_db.h5', sids, start, end, benchmark)
+    data_source2 = HDFDataSource('test_db.h5', sids, '2007-01-01', end, benchmark, riskfree)
     print('reading data from HDF...')
     print(data_source2.data)
 
