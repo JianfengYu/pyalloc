@@ -97,21 +97,22 @@ class BacktestReport(Report):
         basic_risk_indicators = []
         basic_risk_indicators.append(['Total Returns', "{0:.3%}".format(self._total_return)])
         basic_risk_indicators.append(['Annual Returns', "{0:.3%}".format(self._annal_return)])
+        basic_risk_indicators.append(['Annual Volatility', "{0:.4%}".format(self._annal_volatility)])
         basic_risk_indicators.append(['Bench Total Returns', "{0:.3%}".format(self._bench_total_return)])
         basic_risk_indicators.append(['Bench Annual Returns', "{0:.3%}".format(self._bench_annal_return)])
+        basic_risk_indicators.append(['Sharpe', "{0:.4}".format(self._sharpe)])
+
         basic_risk_indicators.append(['Alpha', "{0:.4}".format(self._alpha)])
         basic_risk_indicators.append(['Beta', "{0:.4}".format(self._beta)])
-        basic_risk_indicators.append(['Annual Volatility', "{0:.4%}".format(self._annal_volatility)])
+
         basic_risk_indicators.append(['MaxDrawdown', "{0:.3%}".format(self._max_drawdown_info[0])])
         basic_risk_indicators.append(['MaxDrawdown Period', "{0} to {1}, {2} days".format(
             self._max_drawdown_info[1], self._max_drawdown_info[2], self._max_drawdown_info[3])]
                                      )
         basic_risk_indicators.append(['Max Waite Period', "{0} days".format(self._max_wait_days)])
-        basic_risk_indicators.append(['Sharpe', "{0:.4}".format(self._sharpe)])
+
         basic_risk_indicators.append(['Information Ratio', "{0:.4}".format(self._information_ratio)])
-
         basic_risk_indicators.append(['Calmar', "{0:.4}".format(self._calmar)])
-
         basic_risk_indicators.append(['Sortino', "{0:.4}".format(self._Sortino)])
 
         basic_risk_indicators.append(['Tracking Error', "{0:.4}".format(self._tracking_error)])

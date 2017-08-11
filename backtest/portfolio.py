@@ -9,6 +9,7 @@ from pyalloc.backtest.context import Context
 # 用于记录当期损益和权重
 PInfo = namedtuple("PInfo", ["time", "pct_change", "turnover", "cost", "cash_weight", "asset_weight"])
 
+
 class Portfolio:
 
     def __init__(self, init_weight: dict, init_cash_weight: float, trading_cost_ratio: float):
@@ -82,7 +83,7 @@ class Portfolio:
             # 当期收益
             self._pct_change += self._weight[sid] * Context.cur_quotes[sid].pct_change
             # 权重因为收益的变化
-            self._weight[sid]= self._weight[sid] * (1 + Context.cur_quotes[sid].pct_change)
+            self._weight[sid] = self._weight[sid] * (1 + Context.cur_quotes[sid].pct_change)
             # 总权重
             total_asset_weight += self._weight[sid]
 
@@ -96,7 +97,6 @@ class Portfolio:
 
         # 更新现金权重
         self._cash_weight = self._cash_weight / total_asset_weight
-
 
     def __repr__(self):
         return "PInfo({0})".format({

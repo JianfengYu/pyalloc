@@ -4,21 +4,21 @@ from typing import Union, Dict
 
 import numpy as np
 import pandas as pd
-
-import seaborn as sns
-sns.set_style("whitegrid")
-
-# 解决中文显示问题
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 指定默认字体
-mpl.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+import seaborn as sns
 
 from pyalloc.backtest.datasource import DataSource, HDFDataSource
 from pyalloc.backtest.portfolio import Portfolio, Context
 from pyalloc.backtest.report import BacktestReport
 
+# 解决中文显示问题
+mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 指定默认字体
+mpl.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+sns.set_style("whitegrid")
+
 logger = logging.getLogger(__name__)
+
 
 class StrategyEnvironment:
     """策略运行环境"""
@@ -73,7 +73,7 @@ class Strategy(metaclass=abc.ABCMeta):
         )
 
         # 回测参数
-        self._cursor = 0 # 游标，用于控制行情遍历的位置，获取历史行情
+        self._cursor = 0  # 游标，用于控制行情遍历的位置，获取历史行情
         self._datasource = self._env.datasource
         self._sids = self._datasource.sids
         self._records = []
@@ -105,7 +105,7 @@ class Strategy(metaclass=abc.ABCMeta):
         raise NotImplementedError('method not defined!')
 
     def _on_quotes(self, quotes: dict):
-        "单次行情触发"
+        """单次行情触发"""
 
         # 当前行情
         Context.cur_quotes = quotes
@@ -152,10 +152,10 @@ class Strategy(metaclass=abc.ABCMeta):
         self._weight = pd.DataFrame({
             record.time: pd.Series(
                 [item[1] for item in record.asset_weight],
-                index = [item[0] for item in record.asset_weight]
+                index=[item[0] for item in record.asset_weight]
                                      ) for record in self._records}).T
         self._weight['cash'] = pd.Series([record.cash_weight for record in self._records],
-                                         index = [record.time for record in self._records])
+                                         index=[record.time for record in self._records])
 
         # 重新组合每日收益
         self._s_ret = pd.Series(

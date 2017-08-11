@@ -1,30 +1,32 @@
 """
-收益和风险的分解，收益特征的分析
+收益和风险的分解，收益特征的分析，策略之间的比较
 """
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy import stats
+from typing import List
 
-sns.set_style("whitegrid")
-
-# 解决中文显示问题
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 指定默认字体
-mpl.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
-
-import pyalloc.tools.analyze as als
 from pyalloc.backtest.strategy import Strategy
 from pyalloc.data.api_config import wind_edb_dict
 
+# 解决中文显示问题
+mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 指定默认字体
+mpl.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+
+sns.set_style("whitegrid")
+
 
 def dict_value_to_key(dic: dict) -> dict:
-    res = { dic[a]: a for a in dic.keys()}
+    res = {dic[a]: a for a in dic.keys()}
     return res
 code_map = dict_value_to_key(wind_edb_dict)
 
+
 class Xray:
+    """对单一策略回测结果的分析"""
 
     def __init__(self, strategy: Strategy):
 
@@ -48,15 +50,23 @@ class Xray:
         self._cost = strategy.cost
         self._backtest_report = strategy._report
 
-        # self._strategy = strategy
+       # self._strategy = strategy
 
     def run(self):
-        """进行所有的分析"""
-        self.plot_rebalance_weight()
-        self.plot_daily_weight()
-        self.return_analyser(plot=True)
-        self.plot_return_distribution()
-        self.plot_drawdown()
+        """进行常规的分析"""
+        self.plot_rebalance_weight()            # 调仓权重图
+        self.plot_daily_weight()                # 每日权重图
+        self.return_attribution(plot=True)      # 收益归因图
+        self.plot_return_distribution()         # 收益分布图
+        self.plot_drawdown()                    # 回撤分析图
+
+    def return_analyze(self):
+        #TODO 收益的进一步分析，包括按月的柱状图，按年的柱状图，滚动sharpe ratio
+        pass
+
+    def risk_analyze(self):
+        #TODO 风险的进一步分析，包括滚动sharpe ratio，VaR值 vs 累计损失
+        pass
 
     def plot_return_distribution(self):
         """每日收益分布作图"""
@@ -68,8 +78,8 @@ class Xray:
         plt.title(self._s_name + ' Daily Return Distribution')
         plt.show()
 
-    def return_analyser(self, start_date=None, end_date=None, plot=False,
-                        code_dict=code_map):
+    def return_attribution(self, start_date=None, end_date=None, plot=False,
+                           code_dict=code_map):
         """收益分解"""
         if start_date is None and end_date is None:
             ret_daily = self._ret.dropna()
@@ -179,22 +189,16 @@ class Xray:
         plt.show()
 
 
-    @staticmethod
-    def draw_weight(weight: pd.Series, title: str, figure_size=(12, 6)):
-        """绘制给定权重的图"""
 
-        w = weight.copy()
-        w.index = [pd.datetime.strftime(a, '%Y-%m') for a in w.index]
-        w.plot(title=title, kind='bar', stacked=True, figsize=figure_size, alpha=0.9,
-                    color=sns.color_palette("Paired"))
+class Comparator(List[Strategy]):
+    """对多个策略进行比较"""
 
-        step = len(w.index) // 8
-        plt.xticks(range(0, len(w.index), step), [w.index[i] for i in range(0, len(w.index), step)])
-        plt.yticks(np.arange(0, 1.1, 0.2), ['{0:.0f}%'.format(a * 100) for a in np.arange(0, 1.1, 0.2)])
+    def __init__(self):
+        pass
+        # TODO 对多个策略进行比较，包括净值曲线，分析指标比较
 
-        plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0.)
-        plt.show()
+
 
 if __name__ == '__main__':
-    # 获取收益率数据
+
     pass

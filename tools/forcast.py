@@ -9,7 +9,6 @@ import statsmodels.formula.api as smf
 import matplotlib.pyplot as plt
 
 
-
 def seasonal_adj(s: pd.Series, plot=False):
     res = sm.tsa.x13_arima_analysis(s)
     if plot:
@@ -18,7 +17,8 @@ def seasonal_adj(s: pd.Series, plot=False):
     return res.seasadj, res.trend, res.irregular
 
 
-def rolling_ols(formula: str, data: pd.DataFrame, window: int, r2_adj=False, expanding=False, robust=False, M=sm.robust.norms.AndrewWave()):
+def rolling_ols(formula: str, data: pd.DataFrame, window: int, r2_adj=False, expanding=False, robust=False,
+                M=sm.robust.norms.AndrewWave()):
 
     para_res = {}
     r_2_res = {}
@@ -62,7 +62,7 @@ def rolling_ols(formula: str, data: pd.DataFrame, window: int, r2_adj=False, exp
     return para_res, r_2_res.mean(), model_sig, forcast_res
 
 
-def rolling_pca_reg(endog, exog, select_eig_num:int, window: int, expanding = False, r2_adj=False, robust=False, M=sm.robust.norms.AndrewWave()):
+def rolling_pca_reg(endog, exog, select_eig_num: int, window: int, expanding = False, r2_adj=False, robust=False, M=sm.robust.norms.AndrewWave()):
 
     assert exog.shape[1] >= select_eig_num, 'The dim of vars are less than the selecet eig number!'
 

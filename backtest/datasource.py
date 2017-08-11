@@ -1,12 +1,10 @@
-import  abc
+import abc
 import pandas as pd
 from typing import Union
 
-import pyalloc.tools.analyze as anz
-
 from pyalloc.backtest.enums import Frequency
 from pyalloc.data.loader import WindEDBReader, HDFLoader
-from pyalloc.config import TRADING_DAYS_A_YEAR, TRADING_MONTHS_A_YEAR, TRADING_WEEKS_A_YEAR
+
 
 class DataSource(metaclass=abc.ABCMeta):
     """
@@ -144,6 +142,25 @@ class DataSource(metaclass=abc.ABCMeta):
 
         return hists
 
+    def to_hdf(self, path: str):
+        """
+        将数据保存为hdf文件
+
+        Parameters
+        ----------
+        path: str
+            hdf文件保存路径
+
+        Returns
+        -------
+
+        """
+        db = pd.HDFStore(path)
+        for sid in self._sids:
+            db[sid] = self._data[sid]
+        db.close()
+
+
 class WindDataSource(DataSource):
     """主要用于从Wind读取和存储"""
 
@@ -166,7 +183,7 @@ class WindDataSource(DataSource):
                 # 获得所有index的交集
                 self._index = self._index.intersection(self._data[sid].index)
 
-        if benchmark is not None and benchmark not in self.sids:
+        if benchmark is not None and benchmark not in self._sids:
             if isinstance(benchmark, str):
                 df_bench = loader.read(benchmark, start, end)[benchmark]
 
@@ -177,7 +194,7 @@ class WindDataSource(DataSource):
             else:
                 raise Exception("benchmark must be a sid")
 
-        if riskfree is not None and riskfree not in self.sids:
+        if riskfree is not None and riskfree not in self._sids:
             if isinstance(riskfree, str):
                 df_riskfree = loader.read(riskfree, start, end)[riskfree]
 
@@ -194,11 +211,6 @@ class WindDataSource(DataSource):
 
         self._check_valid()
 
-    def to_hdf(self, path: str):
-        db = pd.HDFStore(path)
-        for sid in self._sids:
-            db[sid] = self._data[sid]
-        db.close()
 
 class HDFDataSource(DataSource):
 
@@ -219,7 +231,7 @@ class HDFDataSource(DataSource):
             else:
                 self._index = self._index.intersection(self._data[sid].index)
 
-        if benchmark is not None and benchmark not in self.sids:
+        if benchmark is not None and benchmark not in self._sids:
             if isinstance(benchmark, str):
                 df_bench = loader.read(benchmark, start, end)[benchmark]
 
@@ -230,7 +242,7 @@ class HDFDataSource(DataSource):
             else:
                 raise Exception("benchmark must be a sid")
 
-        if riskfree is not None and riskfree not in self.sids:
+        if riskfree is not None and riskfree not in self._sids:
             if isinstance(riskfree, str):
                 df_riskfree = loader.read(riskfree, start, end)[riskfree]
 
@@ -247,38 +259,32 @@ class HDFDataSource(DataSource):
 
         self._check_valid()
 
-    def to_hdf(self, path: str):
-        db = pd.HDFStore(path)
-        for sid in self._sids:
-            db[sid] = self._data[sid]
-        db.close()
-
 
 if __name__ == "__main__":
-    # 更新所有行情数据
-
-    from pyalloc.data.api_config import wind_edb_dict
-    edb_config = pd.read_excel('D:\PersonalProjects\pyalloc\pyalloc\EDB_config.xlsx')
-
-    sids = []
-    for iter in edb_config.itertuples():
-        if iter.type == 0 or iter.type ==2:
-            sids.append(iter.code)
-
-    benchmark_name = '上证综合指数'
-    riskfree_name = 'SHIBOR_3m'
-
-    benchmark = wind_edb_dict[benchmark_name]
-    riskfree = wind_edb_dict[riskfree_name]
-
-    start = '1990-01-01'
-    end = pd.datetime.now().strftime('%Y-%m-%d')
-
-    data_source = WindDataSource(sids, start, end, benchmark, riskfree)
-    data_source.to_hdf('test_db.h5')
-    print(data_source.data)
-
-    data_source2 = HDFDataSource('test_db.h5', sids, '2007-01-01', end, benchmark, riskfree)
-    print('reading data from HDF...')
-    print(data_source2.data)
-
+    pass
+    # # 从wind更新所有回测行情数据
+    #
+    # from pyalloc.data.api_config import wind_edb_dict
+    # edb_config = pd.read_excel('D:\PersonalProjects\pyalloc\pyalloc\EDB_config.xlsx')
+    #
+    # sids = []
+    # for iter in edb_config.itertuples():
+    #     if iter.type == 0 or iter.type ==2:
+    #         sids.append(iter.code)
+    #
+    # benchmark_name = '上证综合指数'
+    # riskfree_name = 'SHIBOR_3m'
+    #
+    # benchmark = wind_edb_dict[benchmark_name]
+    # riskfree = wind_edb_dict[riskfree_name]
+    #
+    # start = '1990-01-01'
+    # end = pd.datetime.now().strftime('%Y-%m-%d')
+    #
+    # data_source = WindDataSource(sids, start, end, benchmark, riskfree)
+    # data_source.to_hdf('test_db.h5')
+    # print(data_source.data)
+    #
+    # data_source2 = HDFDataSource('test_db.h5', sids, '2007-01-01', end, benchmark, riskfree)
+    # print('reading data from HDF...')
+    # print(data_source2.data)

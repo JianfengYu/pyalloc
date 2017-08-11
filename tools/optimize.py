@@ -7,7 +7,7 @@ import warnings
 # turn off progress printing
 # solvers.options['show_progress'] = False
 
-import scipy.optimize as sopt #解凸优化
+import scipy.optimize as sopt  # 解凸优化
 
 
 def risk_parity_solver(cov: pd.DataFrame, tol=1e-6, max_loop=100000):
@@ -16,11 +16,11 @@ def risk_parity_solver(cov: pd.DataFrame, tol=1e-6, max_loop=100000):
 
     Parameters
     ----------
-    C : np.matrix
+    cov: np.matrix
         证券的协方差矩阵，要求正定，如果不正定会抛出异常
-    tolerance : float
+    tol: float
         误差容忍，默认为 1e-6
-    max_loop : int
+    max_loop: int
         最大迭代步数，默认为 100000
 
     Returns
@@ -55,8 +55,8 @@ def risk_parity_solver(cov: pd.DataFrame, tol=1e-6, max_loop=100000):
     # 检查 C 是否正定
     try:
         np.linalg.cholesky(C)
-    except Exception:
-        print("协方差矩阵不正定，无法求解")
+    except Exception as e:
+        print(e, "协方差矩阵不正定，无法求解")
         return
 
     # 等风险占比
@@ -95,14 +95,20 @@ def risk_parity_solver(cov: pd.DataFrame, tol=1e-6, max_loop=100000):
     return [a[0] for a in res]
 
 
-def risk_budget_solver(cov: pd.DataFrame, risk_budget:list, tol= 1e-10):
+def risk_budget_solver(cov: pd.DataFrame, risk_budget: list, tol=1e-10):
     """
     风险预算优化器
 
     Parameters
     ----------
-    cov
-    risk_budget
+    cov: pd.DataFrame
+        方差协方差矩阵
+
+    risk_budget: list
+        风险预算
+
+    tol: float
+        迭代优化的精度
 
     Returns
     -------
@@ -114,7 +120,7 @@ def risk_budget_solver(cov: pd.DataFrame, risk_budget:list, tol= 1e-10):
 
     x0 = np.ones(cov.shape[0]) / cov.shape[0]  # 优化的初始值X0，次数默认将其设定为总体平均值
 
-    ###定义目标函数及其导数为： 其中sign>0表示求解最小值,sign<0表示求解最大值
+    # 定义目标函数及其导数为： 其中sign>0表示求解最小值,sign<0表示求解最大值
     def func_risk_budget(x, sign=1.0, cov_day=cov, b=risk_budget):
         n = cov_day.shape[0]
         temp = 0
@@ -125,7 +131,7 @@ def risk_budget_solver(cov: pd.DataFrame, risk_budget:list, tol= 1e-10):
                            b[stepi]) ** 2
         return sign * temp
 
-    ##约束条件，注意ineq此处含义是>=，等式及不等式右侧默认为0，如sum(x)-1=0
+    # 约束条件，注意ineq此处含义是>=，等式及不等式右侧默认为0，如sum(x)-1=0
 
     cons_risk_budget = ({'type': 'eq', 'fun': lambda x: np.array([sum(x) - 1])},
                         {'type': 'ineq', 'fun': lambda x: np.array(x)},
@@ -137,7 +143,7 @@ def risk_budget_solver(cov: pd.DataFrame, risk_budget:list, tol= 1e-10):
     return res_risk_budget['x']
 
 
-def Markovitz_solver(r, C, tau=None, bound=None, target_vol=0.1, x0=None, tol= 1e-10,
+def Markovitz_solver(r, C, tau=None, bound=None, target_vol=0.1, x0=None, tol=1e-10,
                      constrains=({'type': 'eq',  'fun': lambda w: sum(w) - 1.0})
                      ):
     """
