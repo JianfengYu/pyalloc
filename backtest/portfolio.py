@@ -66,6 +66,9 @@ class Portfolio:
         # print("******using update_by_rebalance")
         assert self._weight.keys() == target_weight.keys(), "调仓标的与现有标的不符合！"
 
+        # 记录调仓权重
+        Context.rebalance.append((Context.cur_time, target_weight))
+
         total_asset_weight = .0
         self._pct_change = .0
         self._cost = .0

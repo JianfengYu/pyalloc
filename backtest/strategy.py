@@ -25,12 +25,9 @@ class StrategyEnvironment:
     def __init__(self, sids: list,
                  start: Union[pd.Timestamp, str], end: Union[pd.Timestamp, str],
                  init_weight: Dict[str, float], init_cash_weight: float,
-                 benchmark=None, risk_free=None,
-                 trading_cost_ratio=0.003, hdfpath=None
+                 trading_cost_ratio=0.003,
+                 benchmark=None, risk_free=None, hdfpath=None
                  ):
-
-        self.init_weight = init_weight
-        self._portfolio = Portfolio(init_weight, init_cash_weight, trading_cost_ratio)
 
         self.benchmark = benchmark
         self.risk_free = risk_free
@@ -40,6 +37,10 @@ class StrategyEnvironment:
         self.start = start_
         self.end = end_
         self.__datasource = HDFDataSource(hdfpath, sids, start_, end_, benchmark, risk_free)
+
+        self._init_weight = init_weight
+        self._init_cash_weight = init_cash_weight
+        self._trading_cost_ratio = trading_cost_ratio
 
     @property
     def datasource(self) -> DataSource:
@@ -64,14 +65,16 @@ class StrategyEnvironment:
 class Strategy(metaclass=abc.ABCMeta):
     """策略基类，同时也是回测的驱动"""
 
-    def __init__(self, env: StrategyEnvironment, name='Strategy'):
+    def __init__(self, env: StrategyEnvironment, name: str):
         self._name = name
         self._env = env
+        self._portfolio = Portfolio(
+            env._init_weight.copy(), env._init_cash_weight, env._trading_cost_ratio
+        )
 
         # 回测参数
         self._cursor = 0 # 游标，用于控制行情遍历的位置，获取历史行情
         self._datasource = self._env.datasource
-        self._portfolio = self._env._portfolio
         self._sids = self._datasource.sids
         self._records = []
 
@@ -81,6 +84,7 @@ class Strategy(metaclass=abc.ABCMeta):
         self._turnover = None
         self._cost = None
         self._nv = None
+        self._rebalance_weight = None
 
         # 回测结果分析
         self._report = None
@@ -108,6 +112,9 @@ class Strategy(metaclass=abc.ABCMeta):
         # 当前时间
         Context.cur_time = quotes['time']
 
+        # 当前游标
+        Context.cursor = self._cursor
+
         # print('***单次行情触发', Context.cur_time.strftime('%Y-%m-%d'))
 
         # 执行策略
@@ -127,6 +134,9 @@ class Strategy(metaclass=abc.ABCMeta):
 
         # 控制一个策略只能回测一次
         assert self._cursor == 0, "策略已经运行完毕，不能再次运行"
+
+        # 重设全局变量中权重的记录
+        Context.rebalance = []
 
         # 遍历所有的行情
         for quotes in self._env.datasource:
@@ -167,6 +177,12 @@ class Strategy(metaclass=abc.ABCMeta):
             [record.cost for record in self._records],
             index=[record.time for record in self._records]
         ).dropna()
+
+        # 重新组合调仓权重
+        self._rebalance_weight = pd.DataFrame(
+            {item[0]: pd.Series(item[1]) for item in Context.rebalance}
+        ).T
+        self._rebalance_weight['cash'] = self._rebalance_weight.sum(axis=1) - 1
 
         if report:
             self.report()

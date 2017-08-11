@@ -136,11 +136,11 @@ class DataSource(metaclass=abc.ABCMeta):
         assert length > 0, "所取数据长度必须大于 0, length = {0}".format(length)
 
         hists = {}
-        if length > until + 1:
+        if length > until - 1:
             return hists
 
         for sid, df in self._data.items():
-            hists[sid] = df[until - length + 1: until + 1]
+            hists[sid] = df[until - length - 1: until - 1]
 
         return hists
 

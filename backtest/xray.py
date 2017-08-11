@@ -40,6 +40,8 @@ class Xray:
         self._quote['cash'] = .0
 
         self._daily_weight = strategy._weight
+        self._rebalance_weight = strategy._rebalance_weight
+
         self._nv = strategy._nv
         self._ret = strategy._s_ret
         self._turnover = strategy.turnover
@@ -50,6 +52,7 @@ class Xray:
 
     def run(self):
         """进行所有的分析"""
+        self.plot_rebalance_weight()
         self.plot_daily_weight()
         self.return_analyser(plot=True)
         self.plot_return_distribution()
@@ -144,7 +147,7 @@ class Xray:
         plt.show()
 
     def plot_daily_weight(self, figure_size=(12, 6)):
-        """绘制调仓的权重图"""
+        """绘制每日的权重图"""
 
         weight = self._daily_weight.copy().rename(columns=code_map)
         weight.index = [pd.datetime.strftime(a, '%Y-%m') for a in weight.index]
@@ -160,6 +163,21 @@ class Xray:
 
         plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0.)  # put legend on the right
         plt.show()
+
+    def plot_rebalance_weight(self, figure_size=(12, 6)):
+        """绘制调仓日的权重图"""
+        w = self._rebalance_weight.rename(columns=code_map)
+        w.index = [pd.datetime.strftime(a, '%Y-%m') for a in w.index]
+        w.plot(title=self._s_name + '  Weight', kind='bar', stacked=True, figsize=figure_size, alpha=0.9,
+                    color=sns.color_palette("Paired"))
+
+        step = len(w.index) // 8
+        plt.xticks(range(0, len(w.index), step), [w.index[i] for i in range(0, len(w.index), step)])
+        plt.yticks(np.arange(0, 1.1, 0.2), ['{0:.0f}%'.format(a * 100) for a in np.arange(0, 1.1, 0.2)])
+
+        plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0.)
+        plt.show()
+
 
     @staticmethod
     def draw_weight(weight: pd.Series, title: str, figure_size=(12, 6)):
