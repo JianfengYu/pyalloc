@@ -8,7 +8,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from pyalloc.backtest.datasource import DataSource, HDFDataSource
+from pyalloc.backtest.datasource import DataSource, HDFDataSource, DataFrameSource
 from pyalloc.backtest.portfolio import Portfolio, Context
 from pyalloc.backtest.report import BacktestReport
 
@@ -26,7 +26,7 @@ class StrategyEnvironment:
                  start: Union[pd.Timestamp, str], end: Union[pd.Timestamp, str],
                  init_weight: Dict[str, float], init_cash_weight: float,
                  trading_cost_ratio=0.003,
-                 benchmark=None, risk_free=None, hdfpath=None
+                 benchmark=None, risk_free=None, hdfpath=None, out_df=None
                  ):
 
         self.benchmark = benchmark
@@ -36,11 +36,19 @@ class StrategyEnvironment:
         end_ = pd.to_datetime(end)
         self.start = start_
         self.end = end_
-        self.__datasource = HDFDataSource(hdfpath, sids, start_, end_, benchmark, risk_free)
+
+        if hdfpath is not None:
+            self.__datasource = HDFDataSource(hdfpath, sids, start_, end_, benchmark, risk_free, align='intersect')
+        elif out_df is not None:
+            self.__datasource = DataFrameSource(out_df, sids, start_, end_, benchmark, risk_free, align='intersect')
+        else:
+            raise Exception("You should assign the path of hdf or out DataFrame!")
+
 
         self._init_weight = init_weight
         self._init_cash_weight = init_cash_weight
         self._trading_cost_ratio = trading_cost_ratio
+        self._sids = self.datasource.sids
 
     @property
     def datasource(self) -> DataSource:
@@ -143,8 +151,8 @@ class Strategy(metaclass=abc.ABCMeta):
             try:
                 self._on_quotes(quotes)
             except Exception as e:
-                print(e)
-                break
+                print('Exception time: ', Context.cur_time)
+                raise e
 
             self._cursor += 1
 
@@ -195,23 +203,25 @@ class Strategy(metaclass=abc.ABCMeta):
         if self._env.benchmark is not None:
             bench_ret = self._datasource.data[self._env.benchmark]['pct_change']
             bench_nv = (bench_ret+1).cumprod()
-            bench_nv = add_value_on_first(bench_nv, 1, '1D')
+            bench_nv = add_value_on_first(bench_nv, 1, '1D').fillna(method='ffill')
         else:
             bench_nv = None
 
         if self._env.risk_free is not None:
             ts_rf = self._datasource.data[self._env.risk_free]['pct_change']
-            ts_rf = add_value_on_first(ts_rf, 0, '1D')
+            ts_rf = add_value_on_first(ts_rf, 0, '1D').fillna(0)
         else:
             ts_rf = None
 
+        # print(len(ts_rf),ts_rf.count())
         self._report = BacktestReport(self._nv, bench_nv, ts_rf, true_beta=False)
 
         if plot_nv:
             self._nv.plot(label=self._name)
             if self._env.benchmark is not None:
-                bench_nv.plot(label='Benchmark', figsize=figure_size, title='Net Value')
+                bench_nv.plot(label='Benchmark', figsize=figure_size)
 
+            sns.plt.title('Net Value')
             sns.plt.legend()
             sns.plt.show()
 
@@ -236,6 +246,21 @@ class Strategy(metaclass=abc.ABCMeta):
     def cost(self):
         assert self._cursor != 0, "策略尚未回测，请先进行run方法!"
         return self._cost
+
+    @property
+    def net_value(self):
+        assert self._cursor != 0, "策略尚未回测，请先进行run方法!"
+        return self._nv
+
+    @property
+    def daily_return(self):
+        assert self._cursor != 0, "策略尚未回测，请先进行run方法!"
+        return self._s_ret
+
+    @property
+    def name(self):
+        assert self._cursor != 0, "策略尚未回测，请先进行run方法!"
+        return self._name
 
 
 def add_value_on_first(s: pd.Series, value: float, time_delta='1D') -> pd.Series:

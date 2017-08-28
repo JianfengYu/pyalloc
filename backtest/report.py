@@ -76,15 +76,15 @@ class BacktestReport(Report):
                 self._information_ratio = anz.cal_information_ratio(self._s_nv, self._bench_nv, freq='D')
                 self._tracking_error = anz.cal_tracking_error(self._s_nv, self._bench_nv, freq='D')
 
-        elif self._rf_flag:
-            if anz.check(self._s_nv, self._bench_nv, self._rf_flag):
-                self._beta = anz.cal_beta(self._s_nv, self._bench_nv, self._rf)
+            elif self._rf_flag:
+                if anz.check(self._s_nv, self._bench_nv, self._rf_flag):
+                    self._beta = anz.cal_beta(self._s_nv, self._bench_nv, self._rf)
 
-            if self._true_beta:  # 用真实的策略beta计算alpha
-                self._alpha = anz.cal_alpha(self._s_nv, self._bench_nv, self._rf, beta=self._beta)
-                self._Treynor = anz.cal_treynor(self._s_nv, self._bench_nv, self._rf, freq='D')
-            else:  # 直接计算超额收益，即beta=1
-                self._alpha = anz.cal_alpha(self._s_nv, self._bench_nv, self._rf, beta=1)
+                if self._true_beta:  # 用真实的策略beta计算alpha
+                    self._alpha = anz.cal_alpha(self._s_nv, self._bench_nv, self._rf, beta=self._beta)
+                    self._Treynor = anz.cal_treynor(self._s_nv, self._bench_nv, self._rf, freq='D')
+                else:  # 直接计算超额收益，即beta=1
+                    self._alpha = anz.cal_alpha(self._s_nv, self._bench_nv, self._rf, beta=1)
 
         if self._rf_flag:
             self._Sortino = anz.cal_sortino(self._s_nv, self._rf, freq='D')

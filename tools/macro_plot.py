@@ -2,12 +2,16 @@ import pandas as pd
 import numpy as np
 import scipy as spy
 
+from typing import Union
 import matplotlib.colors as col
 
 from numpy.lib.stride_tricks import as_strided as strided
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from pyalloc.config import TRADING_DAYS_A_YEAR
+from pyalloc.tools.analyze import freq_periods
 
 # sns.set_style("white")
 
@@ -21,6 +25,8 @@ midcolor = '#ffffff'                # a bright white
 endcolor = '#ee0000'                # a dark red
 grenn_to_red_cmap = col.LinearSegmentedColormap.from_list(
     'MyColorbar', [startcolor, midcolor, endcolor])
+
+"""计算"""
 
 
 def cal_percentileofscore(s: pd.Series) -> pd.Series:
@@ -73,6 +79,40 @@ def rolling_correlation(df: pd.DataFrame, w: int) -> pd.Series:
     a = df.values
     return pd.Series(cal_rolling_correlation(a, w), df.index[w - 1:])
 
+def cal_rolling_sharpe(ret: pd.Series, rf: Union[pd.Series, None], window: int, min_periods: int, freq='D') -> pd.Series:
+    """
+    计算rolling sharpe
+
+    Parameters
+    ----------
+    ret: pd.Series
+        收益率序列
+    freq: str
+        频率, 'M' 月度，'W' 周度，'D' 日度， 默认为'D'
+    window:
+        窗口
+    min_periods:
+        最小区间
+
+    Returns
+    -------
+
+    """
+    period = freq_periods(freq)
+
+    if rf is None:
+        ex_mean = ret.rolling(window=window, min_periods=min_periods).mean()
+        std = ret.rolling(window=window, min_periods=min_periods).std()
+        return (ex_mean / std).dropna() * np.sqrt(period)
+
+    index = ret.dropna().index.intersection(rf.dropna().index)
+    ex_mean = (ret - rf).reindex(index).rolling(window=window, min_periods=min_periods).mean()
+    std = ret.reindex(index).rolling(window=window, min_periods=min_periods).std()
+    rolling_sharpe = (ex_mean / std).dropna() * np.sqrt(period)
+    return rolling_sharpe
+
+
+"""画图"""
 
 def plot_mothly_ret_heatmap(s: pd.Series, annot=False, cmap=grenn_to_red_cmap) -> None:
     """
@@ -131,35 +171,77 @@ def plot_corr_heatmap(df: pd.DataFrame, annot=True, cmap=grenn_to_red_cmap) -> N
     plt.show()
 
 
-def plot_rolling_sharpe(ret: pd.Series, window: int, min_periods: int) -> None:
+def plot_hist_level(s: pd.Series, label:str) -> None:
     """
-    画滚动的sharpe图
+    画历史水平图
 
     Parameters
     ----------
-    ret: pd.Series
-        收益率序列
-    window: int
-        滚动区间长度
-    min_periods: int
-        最小数据个数
+    s: pd.Series
+        序列
+    Returns
+    -------
+
+    """
+    s.plot(label=label)
+    plt.axhline(s.iloc[-1], linestyle='--', label='now: {0:.2f}'.format(s.iloc[-1]))
+    plt.axhline(s.median(), c='r', label='Median: {0:.2f}'.format(s.median()))
+    plt.axhline(s.mean(), c='y', label='Average: {0:.2f}'.format(s.mean()))
+    plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0.)
+    plt.show()
+
+
+def cal_duration(s: pd.Series, level: float, up=False) -> pd.Series:
+    """
+    计算累计持续时间
+
+    Parameters
+    ----------
+    s: pd.Series
+        时间序列
+    level: float
+        比较水平
+    up: bool, default False
+        比较的方向，True为高于level
 
     Returns
     -------
 
     """
-    rolling_sharpe = ret.rolling(window=window, min_periods=min_periods).mean() / \
-                     ret.rolling(window=window, min_periods=min_periods).std()
-    rolling_sharpe = rolling_sharpe.dropna()
 
-    rolling_sharpe.plot()
+    if up:
+        dummy = s > level
+    else:
+        dummy = s < level
 
-    plt.axhline(rolling_sharpe.iloc[-1], linestyle='--', label='now')
-    plt.axhline(rolling_sharpe.median(), c='r', label='Median')
-    plt.axhline(rolling_sharpe.mean(), c='y', label='Average')
-    plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0.)
-    plt.show()
+    cum_days = dummy.cumsum()  # 累计的符合天数
+
+    _, stop_duration_day = cal_duration_periods(s, level, up)
+
+    pre_cum_days = cum_days[stop_duration_day].copy()
+    pre_cum_days = pre_cum_days.reindex(dummy.index).fillna(method='ffill').fillna(0)  # 之前累计的天数
+
+    return cum_days - pre_cum_days
+
+def cal_duration_periods(s: pd.Series, level: float, up=False) -> tuple:
+    """符合条件的起止日期"""
+    if up:
+        dummy = s > level
+    else:
+        dummy = s < level
+
+    cum_days = dummy.cumsum()  # 累计的符合天数
+    duration_days = cum_days != cum_days.shift(1)  # 持续增加的天为true
+
+    stop_duration_dummy = (duration_days - duration_days.shift(-1)) == 1
+    start_duration_dummy = (duration_days - duration_days.shift(-1)) == -1
+
+    stop_duration_day = stop_duration_dummy[stop_duration_dummy].index  # 停止持续的日期
+    start_duration_day = start_duration_dummy[start_duration_dummy].index  # 开始持续的日期
+
+    return start_duration_day, stop_duration_day
 
 
 if __name__ == '__main__':
-    print('Hello World')
+    ret = pd.DataFrame(np.random.randn(50, 2), index=pd.date_range(start='2010-01-01', periods=50), columns=['A', 'B'])
+    dummy = ret < 0

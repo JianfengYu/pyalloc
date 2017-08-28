@@ -16,9 +16,9 @@ class Portfolio:
         # 当前剩余资金
         self._cash_weight = copy.deepcopy(init_cash_weight)
 
-        self._pct_change = .0
-        self._cost = .0
-        self._turnover = .0
+        self._pct_change = None
+        self._cost = None
+        self._turnover = None
         self._trading_cost_ratio = trading_cost_ratio
 
         # 复制初始权重，使得TradingEnvironment里的初始权重不变
@@ -76,21 +76,34 @@ class Portfolio:
         self._turnover = .0
 
         for sid in self._weight.keys():
-            # 计算换手比例
-            self._turnover += abs(self._weight[sid] - target_weight[sid])
-            # 开盘更新权重, 不支持资产卖空
-            self._weight[sid] = target_weight[sid] - self._turnover * self._trading_cost_ratio
+            # 计算单个证券换手比例
+            sid_turnover = abs(self._weight[sid] - target_weight[sid])
+
+            # 开盘更新权重, 支持资产卖空
+            if target_weight[sid] >= 0:  # 不卖空
+                if target_weight[sid] > sid_turnover * self._trading_cost_ratio:  # 足够交易损耗
+                    self._weight[sid] = target_weight[sid] - sid_turnover * self._trading_cost_ratio
+                else:
+                    self._weight[sid] = 0
+            else:  # 可以卖空
+                if abs(target_weight[sid]) > sid_turnover * self._trading_cost_ratio:  # 减少卖空量
+                    self._weight[sid] = target_weight[sid] + sid_turnover * self._trading_cost_ratio
+                else:
+                    self._weight[sid] = 0
+
             # 当期收益
             self._pct_change += self._weight[sid] * Context.cur_quotes[sid].pct_change
             # 权重因为收益的变化
             self._weight[sid] = self._weight[sid] * (1 + Context.cur_quotes[sid].pct_change)
             # 总权重
             total_asset_weight += self._weight[sid]
-
-        # 交易成本
-        self._cost = self._turnover * self._trading_cost_ratio
+            # 总换手
+            self._turnover += sid_turnover
+            # 交易成本
+            self._cost += sid_turnover * self._trading_cost_ratio * (1 + Context.cur_quotes[sid].pct_change)
 
         total_asset_weight += self._cash_weight
+
         # 重新计算权重
         for sid in self._weight.keys():
             self._weight[sid] = self._weight[sid] / total_asset_weight

@@ -57,7 +57,7 @@ def risk_parity_solver(cov: pd.DataFrame, tol=1e-6, max_loop=100000):
         np.linalg.cholesky(C)
     except Exception as e:
         print(e, "协方差矩阵不正定，无法求解")
-        return
+        raise e
 
     # 等风险占比
     b = np.ones((n, 1)) * (1/n)
@@ -143,7 +143,7 @@ def risk_budget_solver(cov: pd.DataFrame, risk_budget: list, tol=1e-10):
     return res_risk_budget['x']
 
 
-def Markovitz_solver(r, C, tau=None, bound=None, target_vol=0.1, x0=None, tol=1e-10,
+def Markovitz_solver(r, C, tau=None, bound=None, target_vol=None, x0=None, tol=1e-10,
                      constrains=({'type': 'eq',  'fun': lambda w: sum(w) - 1.0})
                      ):
     """
@@ -172,7 +172,14 @@ def Markovitz_solver(r, C, tau=None, bound=None, target_vol=0.1, x0=None, tol=1e
     -------
 
     """
-    assert tau is not None or target_vol is not None, "One of the tau and target_vol should be specified!"
+    assert tau is not None , "Tau should be specified!"
+
+    # 检查 C 是否正定
+    try:
+        np.linalg.cholesky(C)
+    except Exception as e:
+        print(e, "协方差矩阵不正定，无法求解")
+        raise e
 
     numAsset = len(r)
 
@@ -188,17 +195,23 @@ def Markovitz_solver(r, C, tau=None, bound=None, target_vol=0.1, x0=None, tol=1e
     # else:
     #     bounds = bound
 
-    # 风险厌恶系数设置，在无约束条件下可以由目标波动率反推出
-    if tau is None:
-        t = np.sqrt(np.dot(np.dot(r, np.linalg.inv(C)), r)) / target_vol
+    # 风险厌恶系数设置
+    t = tau
+
+    if target_vol is not None:
+        cons = (
+            {'type': 'eq', 'fun': lambda w: sum(w) - 1.0},
+            {'type': 'ineq', 'fun': lambda w: target_vol - np.dot(np.dot(w, C), w)}
+        )
     else:
-        t = tau
+        cons = constrains
+
 
     def objFunc(w, r, C, tau): # tau为风险厌恶系数
         val = t/2 * np.dot(np.dot(w, C), w) - sum(w * r)
         return val
 
-    result = sopt.minimize(objFunc, w0, (r, C, t), method='SLSQP', constraints=constrains, bounds=bound, tol=tol)
+    result = sopt.minimize(objFunc, w0, (r, C, t), method='SLSQP', constraints=cons, bounds=bound, tol=tol)
     w_opt = result.x
 
     return w_opt

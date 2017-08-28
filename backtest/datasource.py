@@ -34,6 +34,8 @@ class DataSource(metaclass=abc.ABCMeta):
         # 必须字段
         assert 'pct_change' in self._columns, "数据必须包含 pct_change 字段"
 
+    # TODO def _check_nan
+
     @property
     def sids(self) -> list:
         return self._sids
@@ -157,7 +159,7 @@ class DataSource(metaclass=abc.ABCMeta):
         """
         db = pd.HDFStore(path)
         for sid in self._sids:
-            db[sid] = self._data[sid]
+            db[sid] = self._data[sid].dropna()
         db.close()
 
 
@@ -165,7 +167,9 @@ class WindDataSource(DataSource):
     """主要用于从Wind读取和存储"""
 
     def __init__(self, sids: list, start: Union[pd.Timestamp, str], end: Union[pd.Timestamp, str],
-                 benchmark: Union[str, None], riskfree: Union[str, None], frequency=None):
+                 benchmark: Union[str, None], riskfree: Union[str, None], frequency=None,
+                 align='intersect'
+                 ):
         super().__init__(sids, frequency)
         self._benchmark = benchmark
 
@@ -177,15 +181,23 @@ class WindDataSource(DataSource):
         for sid in self._sids:
             if self._columns is None:
                 self._columns = self._data[sid].columns
+
+            # 对齐时间索引
             if len(self._index) == 0:
                 self._index = self._data[sid].index
             else:
-                # 获得所有index的交集
-                self._index = self._index.intersection(self._data[sid].index)
+                if align == 'intersect':
+                    # 交集
+                    self._index = self._index.intersection(self._data[sid].index)
+                elif align == 'union':
+                    # 并集
+                    self._index = self._index.union(self._data[sid].index)
+                else:
+                    raise Exception('不支持的对齐方式： ', align)
 
         if benchmark is not None and benchmark not in self._sids:
             if isinstance(benchmark, str):
-                df_bench = loader.read(benchmark, start, end)[benchmark]
+                df_bench = loader.read([benchmark], start, end)[benchmark]
 
                 if not isinstance(df_bench.index, pd.DatetimeIndex):
                     raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
@@ -196,7 +208,7 @@ class WindDataSource(DataSource):
 
         if riskfree is not None and riskfree not in self._sids:
             if isinstance(riskfree, str):
-                df_riskfree = loader.read(riskfree, start, end)[riskfree]
+                df_riskfree = loader.read([riskfree], start, end)[riskfree]
 
                 if not isinstance(df_riskfree.index, pd.DatetimeIndex):
                     raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
@@ -205,17 +217,26 @@ class WindDataSource(DataSource):
             else:
                 raise Exception("riskfree must be a sid")
 
+        # 重新设置index
+        for sid, df in self._data.items():
+            self._data[sid] = df.reindex(self._index)
+
+        # 将 index 转换成 list
         self._index = self._index.tolist()
 
+        # 设置长度
         self._size = len(self._index)
 
+        # 检查数据有效性
         self._check_valid()
 
 
 class HDFDataSource(DataSource):
 
     def __init__(self, hdfpath, sids: list, start: Union[pd.Timestamp, str], end: Union[pd.Timestamp, str],
-                 benchmark: str, riskfree: str, frequency=None):
+                 benchmark: Union[str, None], riskfree: Union[str, None], frequency=None,
+                 align='intersect'
+                 ):
         super().__init__(sids, frequency)
         self._benchmark = benchmark
         self._path = hdfpath
@@ -226,38 +247,108 @@ class HDFDataSource(DataSource):
         for sid in self._sids:
             if self._columns is None:
                 self._columns = self._data[sid].columns
+
+            # 对齐时间索引
             if len(self._index) == 0:
                 self._index = self._data[sid].index
             else:
-                self._index = self._index.intersection(self._data[sid].index)
+                if align == 'intersect':
+                    # 交集
+                    self._index = self._index.intersection(self._data[sid].index)
+                elif align == 'union':
+                    # 并集
+                    self._index = self._index.union(self._data[sid].index)
+                else:
+                    raise Exception('不支持的对齐方式： ', align)
 
         if benchmark is not None and benchmark not in self._sids:
             if isinstance(benchmark, str):
-                df_bench = loader.read(benchmark, start, end)[benchmark]
+                df_bench = loader.read([benchmark], start, end)[benchmark]
 
                 if not isinstance(df_bench.index, pd.DatetimeIndex):
                     raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
 
-                self._data[benchmark] = pd.DataFrame({'pct_change': df_bench[benchmark]})
+                self._data[benchmark] = pd.DataFrame({'pct_change': df_bench['pct_change']})
             else:
                 raise Exception("benchmark must be a sid")
 
         if riskfree is not None and riskfree not in self._sids:
             if isinstance(riskfree, str):
-                df_riskfree = loader.read(riskfree, start, end)[riskfree]
+                df_riskfree = loader.read([riskfree], start, end)[riskfree]
+                # print(df_riskfree)
 
                 if not isinstance(df_riskfree.index, pd.DatetimeIndex):
                     raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
 
-                self._data[riskfree] = pd.DataFrame({'pct_change': df_riskfree[riskfree]})
+                self._data[riskfree] = pd.DataFrame({'pct_change': df_riskfree['pct_change']})
             else:
                 raise Exception("riskfree must be a sid")
 
+        # 重新设置index
+        for sid, df in self._data.items():
+            self._data[sid] = df.reindex(self._index)
+
+        # 将 index 转换成 list
         self._index = self._index.tolist()
 
+        # 设置长度
         self._size = len(self._index)
 
+        # 检查数据有效性
         self._check_valid()
+
+
+class DataFrameSource(DataSource):
+
+    def __init__(self, quote_df: pd.DataFrame, sids: list, start: Union[pd.Timestamp, str], end: Union[pd.Timestamp, str],
+                 benchmark: Union[str, None], riskfree: Union[str, None], frequency=None,
+                 align='intersect'
+                 ):
+        super().__init__(sids, frequency)
+        self._benchmark = benchmark
+        self._raw_df = quote_df
+
+        for sid in self._sids:
+            self._data[sid] = pd.DataFrame({'pct_change': quote_df[sid].dropna()[start: end]})
+
+        for sid in self._sids:
+            if self._columns is None:
+                self._columns = self._data[sid].columns
+
+            # 对齐时间索引
+            if len(self._index) == 0:
+                self._index = self._data[sid].index
+            else:
+                if align == 'intersect':
+                    # 交集
+                    self._index = self._index.intersection(self._data[sid].index)
+                elif align == 'union':
+                    # 并集
+                    self._index = self._index.union(self._data[sid].index)
+                else:
+                    raise Exception('不支持的对齐方式： ', align)
+
+        if benchmark is not None and benchmark not in self._sids:
+            if isinstance(benchmark, str):
+                df_bench = pd.DataFrame({'pct_change': quote_df[benchmark].dropna()[start: end] })
+
+                if not isinstance(df_bench.index, pd.DatetimeIndex):
+                    raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
+
+                self._data[benchmark] = df_bench
+            else:
+                raise Exception("benchmark must be a sid")
+
+        if riskfree is not None and riskfree not in self._sids:
+            if isinstance(riskfree, str):
+                df_bench = pd.DataFrame({'pct_change': quote_df[riskfree].dropna()[start: end] })
+
+                if not isinstance(df_bench.index, pd.DatetimeIndex):
+                    raise Exception("DataFrame 的 index 必须是 pd.DatetimeIndex 类型")
+
+                self._data[riskfree] = df_bench
+            else:
+                raise Exception("riskfree must be a sid")
 
 
 if __name__ == "__main__":

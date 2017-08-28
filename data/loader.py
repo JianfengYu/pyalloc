@@ -1,16 +1,12 @@
 import abc
 import logging
 from typing import Union, Dict
-import os
 
-import pandas as pd
 import numpy as np
-
+import pandas as pd
 from WindPy import w
-from datetime import *
 
-from pyalloc.backtest.enums import Frequency
-from pyalloc.config import TRADING_DAYS_A_YEAR
+from pyalloc.config import TRADING_DAYS_A_YEAR, EDB_info
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +26,7 @@ class WindEDBReader(Loader):
 
         # reading config file
         # print(os.getcwd())
-        edb_config = pd.read_excel('D:\PersonalProjects\pyalloc\pyalloc\EDB_config.xlsx')
+        edb_config = EDB_info
         self._config = {}
         for row in edb_config.itertuples(index=False, name='EDB'):
             self._config[row.code] = row
@@ -46,10 +42,12 @@ class WindEDBReader(Loader):
         # df = df.fillna(method='ffill').pct_change().dropna()
         return df
 
-    def read(self, sids:(str, list), start: Union[pd.Timestamp, str],
-             end: Union[pd.Timestamp, str], frequency=None) -> Dict[str, pd.DataFrame]:
+    def read(self, sids: list, start: Union[pd.Timestamp, str],
+             end: Union[pd.Timestamp, str], frequency=None)\
+            -> Union[Dict[str, pd.DataFrame], pd.DataFrame]:
         # 读取原始数据
         df = self.get_raw_data(sids, start, end, frequency)
+
         result = {}
         # 不同数据采用不同的处理方法
         for column in df.columns:
@@ -68,7 +66,7 @@ class WindEDBReader(Loader):
             # 年化收益数据
             elif edb.type == 2:
                 result[column] = pd.DataFrame(
-                    {'pct_change': (np.exp(np.log(df[column]/100 + 1)/ TRADING_DAYS_A_YEAR) - 1).dropna()}
+                    {'pct_change': (np.exp(np.log(df[column]/100 + 1)/ TRADING_DAYS_A_YEAR) - 1).fillna(np.NaN).dropna()}
                 )
             # 宏观存量
             elif edb.type == 3:
@@ -89,7 +87,7 @@ class HDFLoader(Loader):
     def __init__(self, path):
         self._path = path
 
-    def read(self, sids:(str, list), start: Union[pd.Timestamp, str],
+    def read(self, sids: list, start: Union[pd.Timestamp, str],
              end: Union[pd.Timestamp, str], frequency=None) -> Dict[str, pd.DataFrame]:
 
         start_date = pd.to_datetime(start).strftime('%Y-%m-%d')
@@ -108,28 +106,30 @@ class HDFLoader(Loader):
 
 if __name__ == '__main__':
     # # TEST EDB
-    # from pyalloc.data.api_config import wind_edb_dict
+    from old.api_config import wind_edb_dict
     #
-    # ind_cn_simple = [
-    #     '上证综合指数',
-    #     '中债综合指数',
-    #     '南华综合指数',
-    #     'SHIBOR_3m'
-    # ]
+    ind_cn_simple = [
+        '上证综合指数',
+        '中债综合指数',
+        '南华综合指数',
+        'SHIBOR_3m'
+    ]
     #
     # ind_cn_simple = '上证综合指数'
-    #
-    # # codes = [wind_edb_dict[a] for a in ind_cn_simple]
+
+    codes = [wind_edb_dict[a] for a in ind_cn_simple]
     #
     # codes = list(wind_edb_dict.values())
     # reverse_dict = dict([(wind_edb_dict[key], key) for key in wind_edb_dict.keys()])
     #
-    # start = '1990-01-01'
-    # end = pd.datetime.now().strftime('%Y-%m-%d')
+    start = '1990-01-01'
+    end = pd.datetime.now().strftime('%Y-%m-%d')
     #
     # # print(codes)
-    # DATA_LOADER = WindEDBReader()
-    # df = DATA_LOADER.read(codes, start, end)
+    DATA_LOADER = WindEDBReader()
+    df = DATA_LOADER.read(codes, start, end)
+
+    print(df)
     # df.rename(columns=reverse_dict, inplace=True)
     #
     # db = pd.HDFStore('pyalloc.h5')
@@ -139,6 +139,6 @@ if __name__ == '__main__':
     # df.to_csv('edb_df.csv')
 
     # 测试EDB数据读取
-    config = pd.read_excel('EDB_config.xlsx')
-    for row in config.itertuples(index=False, name='EDB'):
-        print(row)
+    # config = pd.read_excel('EDB_config.xlsx')
+    # for row in config.itertuples(index=False, name='EDB'):
+    #     print(row)
