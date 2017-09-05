@@ -10,7 +10,8 @@ import pandas as pd
 import seaborn as sns
 from scipy import stats
 
-from old.api_config import wind_edb_dict
+# from old.api_config import wind_edb_dict
+from pyalloc.config import EDB_info
 from pyalloc.backtest.strategy import Strategy
 
 # 解决中文显示问题
@@ -19,11 +20,13 @@ mpl.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显�
 
 sns.set_style("whitegrid")
 
+dict_code_name = dict(zip(EDB_info.code, EDB_info.cn_name))
+dict_name_code = dict(zip(EDB_info.cn_name, EDB_info.code))
 
-def dict_value_to_key(dic: dict) -> dict:
-    res = {dic[a]: a for a in dic.keys()}
-    return res
-code_map = dict_value_to_key(wind_edb_dict)
+# def dict_value_to_key(dic: dict) -> dict:
+#     res = {dic[a]: a for a in dic.keys()}
+#     return res
+# code_map = dict_value_to_key(wind_edb_dict)
 
 
 class Xray:
@@ -34,6 +37,8 @@ class Xray:
         self._s = strategy
         self._s_name = strategy._name
 
+        self._sids = strategy._sids
+
         self._sdt = strategy._nv.index[0]
         self._edt = strategy._nv.index[-1]
 
@@ -41,10 +46,11 @@ class Xray:
         self._quote = pd.DataFrame([])
         for asset in strategy._datasource.data.keys():
             self._quote[asset] = strategy._datasource.data[asset]['pct_change']
+        self._quote = self._quote[self._sids]
         self._quote['cash'] = .0
 
-        self._daily_weight = strategy._weight
-        self._rebalance_weight = strategy._rebalance_weight
+        self._daily_weight = strategy._weight[self._sids + ['cash'] ]
+        self._rebalance_weight = strategy._rebalance_weight[self._sids + ['cash'] ]
 
         self._nv = strategy._nv
         self._ret = strategy._s_ret
@@ -83,7 +89,7 @@ class Xray:
         plt.show()
 
     def return_attribution(self, start_date=None, end_date=None, plot=False,
-                           code_dict=code_map):
+                           code_dict=dict_code_name):
         """收益分解"""
         if start_date is None and end_date is None:
             ret_daily = self._ret.dropna()
@@ -91,12 +97,12 @@ class Xray:
             ret_daily = self._ret.dropna()[start_date:end_date]
 
         logret_daily = np.log(ret_daily +1)
-        asset_ret = self._quote.reindex(ret_daily.index)[self._s._env.datasource.sids]
+        asset_ret = self._quote.reindex(ret_daily.index)[self._sids + ['cash'] ]
         asset_ret.rename(columns=code_dict, inplace=True)  # 资产收益
 
         # 归因
         # 计算每日开盘权重，需要在调仓日进行修正
-        asset_weight = self._daily_weight.shift(1).reindex(ret_daily.index)  # 前一日收盘权重
+        asset_weight = self._daily_weight.shift(1).reindex(ret_daily.index)[self._sids + ['cash'] ]  # 前一日收盘权重
         asset_weight.rename(columns=code_dict, inplace=True)
 
         # 每日的log return分解
@@ -117,7 +123,7 @@ class Xray:
             plt.figure(figsize=(8, 6))
 
             g = sns.barplot(x='Asset', y='Attribution', data=aaa,
-                            palette=sns.color_palette("Paired"))
+                            palette=sns.color_palette("Paired", 20))
 
             sns.plt.title(self._s_name + ' Attribution')
 
@@ -156,7 +162,8 @@ class Xray:
         mdd_range = self._backtest_report._max_drawdown_info[3]
 
         # 最大回撤区间
-        daily_dd[mdd_sdt:mdd_edt].plot(kind='area', label='Max Drawback Periods({0}days)'.format(mdd_range),
+        daily_dd[mdd_sdt:mdd_edt].plot(kind='area', label='Max Drawback Periods({0}days, {1} to {2})'.format(
+            mdd_range, mdd_sdt, mdd_edt),
                                        legend=legend, alpha=0.8, color='Green')
 
         locs, labels = plt.yticks()
@@ -168,11 +175,11 @@ class Xray:
     def plot_daily_weight(self, figure_size=(12, 6)):
         """绘制每日的权重图"""
 
-        weight = self._daily_weight.copy().rename(columns=code_map)
+        weight = self._daily_weight.copy().rename(columns=dict_code_name)
         weight.index = [pd.datetime.strftime(a, '%Y-%m') for a in weight.index]
 
         weight.plot(title=self._s_name + ' Daily Weight', kind='area', stacked=True, figsize=figure_size, alpha=0.9,
-                    color=sns.color_palette("Paired"))
+                    color=sns.color_palette("Paired", 20))
 
         s = weight.index
         if len(s) < 8:
@@ -194,10 +201,10 @@ class Xray:
 
     def plot_rebalance_weight(self, figure_size=(12, 6)):
         """绘制调仓日的权重图"""
-        w = self._rebalance_weight.rename(columns=code_map)
+        w = self._rebalance_weight.rename(columns=dict_code_name)
         w.index = [pd.datetime.strftime(a, '%Y-%m') for a in w.index]
         w.plot(title=self._s_name + '  Weight', kind='bar', stacked=True, figsize=figure_size, alpha=0.9,
-                    color=sns.color_palette("Paired"))
+                    color=sns.color_palette("Paired", 20))
 
         if len(w) < 8:
             step = 1
