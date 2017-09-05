@@ -144,6 +144,27 @@ class DataSource(metaclass=abc.ABCMeta):
 
         return hists
 
+
+    def get_quote(self, date: Union[pd.DatetimeIndex, str]) -> pd.DataFrame:
+        """
+        根据日期获取当日行情
+
+        Parameters
+        ----------
+        date
+            给定的日期
+
+        Returns
+        -------
+
+        """
+        quote = pd.DataFrame([])
+        for sid in self._sids:
+            quote[sid] = self._data[sid]['pct_change'][date]
+
+        return quote
+
+
     def to_hdf(self, path: str):
         """
         将数据保存为hdf文件
