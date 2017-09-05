@@ -156,7 +156,7 @@ def Markovitz_solver(r, C, tau=None, bound=None, target_vol=None, x0=None, tol=1
     C
         方差协方差矩阵
     tau
-        风险厌恶系数，和目标波动率必须制定一个
+        风险厌恶系数
     bound
         边界条件
     constrains
@@ -198,11 +198,44 @@ def Markovitz_solver(r, C, tau=None, bound=None, target_vol=None, x0=None, tol=1
     # 风险厌恶系数设置
     t = tau
 
+    # 如果有目标波动率，先确定是否在最大波动率和最小波动率之间
     if target_vol is not None:
+
+        # 优化出的最小波动率
+        def min_var_objFunc(w, C):
+            vals = np.dot(np.dot(w, C), w)
+            return vals
+        result = sopt.minimize(min_var_objFunc, w0, (C), method='SLSQP',
+                                constraints={'type': 'eq', 'fun': lambda w: sum(w) - 1.0},
+                                bounds=bound, tol=tol
+                                )
+        min_var_w = result.x
+        min_var  = np.dot(np.dot(min_var_w, C), min_var_w)
+
+        if target_vol**2 < min_var:
+            print('波动率控制目标小于预期最小波动率组合，以后者作为权重输出！')
+            return min_var_w
+
+        # # 优化出的最大波动率
+        # def max_var_objFunc(w, C):
+        #     vals = -np.dot(np.dot(w, C), w)
+        #     return vals
+        # result = sopt.minimize(max_var_objFunc, w0, (C), method='SLSQP',
+        #                         constraints={'type': 'eq', 'fun': lambda w: sum(w) - 1.0},
+        #                         bounds=bound, tol=tol
+        #                         )
+        # max_var_w = result.x
+        # max_var  = np.dot(np.dot(max_var_w, C), max_var_w)
+        #
+        # if target_vol**2 > max_var:
+        #     print('波动率控制目标大于预期最大波动率组合，以后者作为权重输出！')
+        #     return max_var_w
+
         cons = (
             {'type': 'eq', 'fun': lambda w: sum(w) - 1.0},
-            {'type': 'ineq', 'fun': lambda w: target_vol - np.dot(np.dot(w, C), w)}
+            {'type': 'ineq', 'fun': lambda w: target_vol**2 - np.dot(np.dot(w, C), w)}
         )
+
     else:
         cons = constrains
 
