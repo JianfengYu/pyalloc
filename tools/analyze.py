@@ -429,6 +429,88 @@ def cal_sharpe(net_value: pd.Series, rf=None, freq='D') -> float:
     return sharpe
 
 
+def cal_m2_measure(net_value: pd.Series, bench_nv: pd.Series, rf=None, freq='D') -> float:
+    """
+    Modigliani risk-adjusted performance
+        M2 = (Rp-Rf).mean() * (sigma(Rb-Rf)/sigma(Rp-Rf)) + Rf.mean()
+
+    Parameters
+    ----------
+    net_value
+        策略净值的时间序列，支持原始账户总资产的时间序列
+
+    bench_nv
+        基准净值的时间序列，支持原始账户总资产的时间序列
+
+    rf
+        风险收益的时间序列
+
+    freq
+        净值序列观测频率，'M'为月，'W'为周，'D'为天。默认为D。
+
+    Returns
+    -------
+    float
+        策略的M2值
+
+    References
+    _______
+    https://en.wikipedia.org/wiki/Modigliani_risk-adjusted_performance#cite_note-3
+    Modigliani, Franco (1997). "Risk-Adjusted Performance". Journal of Portfolio Management. 1997 (Winter): 45–54.
+
+    """
+    periods = freq_periods(freq)
+
+    if rf is None:
+        re_p = net_value.pct_change().dropna()
+        rb = bench_nv.pct_change().dropna()
+    else:
+        re_p = (net_value.pct_change() - rf).dropna()
+        rb = (bench_nv.pct_change() - rf).dropna()
+
+    sigma_ratio = rb.std() / re_p.std()
+
+    m2 = (re_p.mean() * sigma_ratio + rf.mean()) * periods if rf is not None else re_p.mean() * sigma_ratio * periods
+
+    return m2
+
+
+def cal_m2_alpha(net_value: pd.Series, bench_nv: pd.Series, rf=None, freq='D') -> float:
+    """
+    risk-adjusted performance alpha of M2 measure
+        M2 = (Rp-Rf).mean() * (sigma(Rb-Rf)/sigma(Rp-Rf)) + Rf.mean()
+        M2_alpha = M2 - Rf.mean()
+
+    Parameters
+    ----------
+    net_value
+        策略净值的时间序列，支持原始账户总资产的时间序列
+
+    bench_nv
+        基准净值的时间序列，支持原始账户总资产的时间序列
+
+    rf
+        风险收益的时间序列
+
+    freq
+        净值序列观测频率，'M'为月，'W'为周，'D'为天。默认为D。
+
+    Returns
+    -------
+    float
+        策略M2测度下的
+
+    References
+    _______
+    https://en.wikipedia.org/wiki/Modigliani_risk-adjusted_performance#cite_note-3
+    Modigliani, Franco (1997). "Risk-Adjusted Performance". Journal of Portfolio Management. 1997 (Winter): 45–54.
+    """
+    periods = freq_periods(freq)
+    m2 = cal_m2_measure(net_value, bench_nv, rf, freq)
+    m2_alpha = m2 - rf.mean() * periods
+    return  m2_alpha
+
+
 def cal_downside_risk(net_value: pd.Series, bench_nv=None, r_min=.0, freq='D') -> float:
     """
     计算年化的下行波动率
